@@ -1,0 +1,36 @@
+# Web Framework
+streamlit
+
+# LangChain Core
+langchain
+langchain-community
+
+# Vector Store
+faiss-cpu
+
+# Embeddings
+sentence-transformers
+
+# HuggingFace Integration
+huggingface-hub
+
+# Document Loaders
+pypdf
+docx2txt
+beautifulsoup4
+requests
+
+# Environment Variables
+python-dotenv
+
+# Utilities
+numpy
+
+
+
+unstructured 
+PyPDF2
+langchain-huggingface 
+nltk 
+python-docx 
+

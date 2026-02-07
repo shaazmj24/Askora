@@ -1,8 +1,7 @@
 import streamlit as st
-import faiss
 import os
 from io import BytesIO
-from docx import Document
+from docx import Document 
 import numpy as np
 from langchain_community.document_loaders import WebBaseLoader
 from PyPDF2 import PdfReader
@@ -25,28 +24,24 @@ def process_input(input_type, input_data):
         loader = WebBaseLoader(input_data)
         documents = loader.load()
     elif input_type == "PDF":
-        if isinstance(input_data, BytesIO):
-            pdf_reader = PdfReader(input_data)
-        elif isinstance(input_data, UploadedFile):
-            pdf_reader = PdfReader(BytesIO(input_data.read()))
-        else:
-            raise ValueError("Invalid input data for PDF")
+        if input_data is None: 
+            raise ValueError("No PDF uploaded")  
+        pdf_bytes = input_data.getvalue()  
+        pdf_reader = PdfReader(BytesIO(pdf_bytes))
         text = ""
         for page in pdf_reader.pages:
             text += page.extract_text()
-        documents = text
+        documents = text 
     elif input_type == "Text":
         if isinstance(input_data, str):
             documents = input_data  # Input is already a text string
         else:
             raise ValueError("Expected a string for 'Text' input type.")
-    elif input_type == "DOCX":
-        if isinstance(input_data, BytesIO):
-            doc = Document(input_data)
-        elif isinstance(input_data, UploadedFile):
-            doc = Document(BytesIO(input_data.read()))
-        else:
-            raise ValueError("Invalid input data for DOCX")
+    elif input_type == "DOCX": 
+        if input_data is None: 
+            raise ValueError("No DOCX uploaded.")  
+        doc_bytes = input_data.getvalue() 
+        doc = Document(BytesIO(doc_bytes))
         text = "\n".join([para.text for para in doc.paragraphs])
         documents = text
     else:
@@ -59,7 +54,7 @@ def process_input(input_type, input_data):
     else:
         texts = text_splitter.split_text(documents)
 
-    model_name = "sentence-transformers/all-mpnet-base-v2"
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
     model_kwargs = {'device': 'cpu'}
     encode_kwargs = {'normalize_embeddings': False}
 
@@ -68,18 +63,8 @@ def process_input(input_type, input_data):
         model_kwargs=model_kwargs,
         encode_kwargs=encode_kwargs
     )
-    # Create FAISS index
-    sample_embedding = np.array(hf_embeddings.embed_query("sample text"))
-    dimension = sample_embedding.shape[0]
-    index = faiss.IndexFlatL2(dimension)
-    # Create FAISS vector store with the embedding function
-    vector_store = FAISS(
-        embedding_function=hf_embeddings.embed_query,
-        index=index,
-        docstore=InMemoryDocstore(),
-        index_to_docstore_id={},
-    )
-    vector_store.add_texts(texts)  # Add documents to the vector store
+
+    vector_store = FAISS.from_texts(texts, embedding=hf_embeddings) #langchain
     return vector_store
 
 def answer_question(vectorstore, query):

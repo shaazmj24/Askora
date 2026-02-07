@@ -1,36 +1,32 @@
 # Web Framework
 streamlit
 
-# LangChain Core
+# LangChain
 langchain
 langchain-community
+langchain-huggingface
 
-# Vector Store
-faiss-cpu
+# Vector Store (FAISS)
+faiss-cpu 
+
+# Numerical (pin to avoid native-compat crashes)
+numpy<2
 
 # Embeddings
 sentence-transformers
-
-# HuggingFace Integration
 huggingface-hub
+transformers
+tokenizers
 
-# Document Loaders
+# Document & Web Loaders
 pypdf
+PyPDF2
+python-docx
 docx2txt
 beautifulsoup4
 requests
+unstructured
+nltk
 
 # Environment Variables
 python-dotenv
-
-# Utilities
-numpy
-
-
-
-unstructured 
-PyPDF2
-langchain-huggingface 
-nltk 
-python-docx 
-

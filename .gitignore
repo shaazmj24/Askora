@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .DS_store
 *.log
+.env.save
+*.save

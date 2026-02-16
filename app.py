@@ -5,20 +5,19 @@ from docx import Document
 import numpy as np
 from langchain_community.document_loaders import WebBaseLoader
 from PyPDF2 import PdfReader
-from langchain.chains import RetrievalQA
-from langchain.text_splitter import CharacterTextSplitter
+from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_community.docstore.in_memory import InMemoryDocstore
-from langchain_huggingface import HuggingFaceEndpoint  
-import os 
-from dotenv import load_dotenv
+from langchain_community.vectorstores import FAISS 
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv 
 
 load_dotenv() 
-huggingface_api_key = os.getenv("hugging_face_apikey") 
+groq_api_key = os.getenv("groq_key") 
 
 def process_input(input_type, input_data):
-    """Processes different input types and returns a vectorstore."""
     loader = None
     if input_type == "Link":
         loader = WebBaseLoader(input_data)
@@ -67,13 +66,28 @@ def process_input(input_type, input_data):
     vector_store = FAISS.from_texts(texts, embedding=hf_embeddings) #langchain
     return vector_store
 
-def answer_question(vectorstore, query):
-    """Answers a question based on the provided vectorstore."""
-    llm = HuggingFaceEndpoint(repo_id= 'meta-llama/Meta-Llama-3-8B-Instruct', 
-                              token = huggingface_api_key, temperature= 0.6)
-    qa = RetrievalQA.from_chain_type(llm=llm, retriever=vectorstore.as_retriever())
-    answer = qa({"query": query})
-    return answer
+def answer_question(vectorstore, query):  
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        api_key=groq_api_key,
+        temperature=0.6
+    ) 
+    system_prompt = (
+        "Use the given context to answer the question. "
+        "If you don't know the answer, say you don't know. "
+        "Keep the answer concise. "
+        "Context: {context}"
+    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{input}"),
+    ])
+    
+    question_answer_chain = create_stuff_documents_chain(llm, prompt)
+    chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
+    
+    result = chain.invoke({"input": query})
+    return result["answer"]
 
 def main():  
     st.title('Askora') 
@@ -106,6 +120,8 @@ def main():
     
 if __name__ == '__main__': 
     main()   
+    
+    
     
     
     

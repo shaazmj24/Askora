@@ -11,17 +11,31 @@ from langchain_community.vectorstores import FAISS
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
-from dotenv import load_dotenv 
+from langchain_groq import ChatGroq 
+from bs4 import BeautifulSoup
+import requests
+from dotenv import load_dotenv   
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+ 
 
 load_dotenv() 
 groq_api_key = os.getenv("groq_key") 
 
 def process_input(input_type, input_data):
     loader = None
-    if input_type == "Link":
-        loader = WebBaseLoader(input_data)
-        documents = loader.load()
+    if input_type == "Link":  
+        urls = input_data if isinstance(input_data, list) else [input_data]
+        urls = [url for url in urls if url]  
+        all_text = ""
+        for url in urls: 
+            response = requests.get(url) 
+            soup = BeautifulSoup(response.content, "html.parser")  
+            for tag in soup(["nav", "footer", "script", "style"]): 
+                tag.decompose() 
+            main = soup.find("main") or soup.find("article") or soup.find("body")
+            all_text += main.get_text(separator="\n") if main else soup.get_text(separator="\n")
+        documents = all_text 
     elif input_type == "PDF":
         if input_data is None: 
             raise ValueError("No PDF uploaded")  
@@ -46,12 +60,16 @@ def process_input(input_type, input_data):
     else:
         raise ValueError("Unsupported input type")
 
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    if input_type == "Link":
-        texts = text_splitter.split_documents(documents)
-        texts = [ str(doc.page_content) for doc in texts ]  # Access page_content from each Document 
-    else:
-        texts = text_splitter.split_text(documents)
+    text_splitter = CharacterTextSplitter(chunk_size=1500, chunk_overlap=500)
+    texts = text_splitter.split_text(documents) 
+    print("="*50)  
+    print(f"TOTAL CHUNKS: {len(texts)}")  
+    print("="*50)  
+    for i, chunk in enumerate(texts):  
+        print(f"\n--- CHUNK {i} ({len(chunk)} chars) ---")  
+        print(chunk)  
+        print("-"*30)  
+        print("="*50)
 
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
     model_kwargs = {'device': 'cpu'}
@@ -84,10 +102,27 @@ def answer_question(vectorstore, query):
     ])
     
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
-    chain = create_retrieval_chain(vectorstore.as_retriever(), question_answer_chain)
-    
-    result = chain.invoke({"input": query})
-    return result["answer"]
+    chain = create_retrieval_chain(vectorstore.as_retriever(search_kwargs={"k": 10}), question_answer_chain) 
+    try: 
+        result = chain.invoke({"input": query})
+        return result["answer"]
+    except Exception as e:
+        # Check if it's a token limit error
+        if "rate_limit_exceeded" in str(e) or "Request too large" in str(e):
+            # Extract token numbers if possible
+            error_msg = str(e)
+            if "Requested" in error_msg:
+                # Try to extract the requested token count
+                try:
+                    requested = error_msg.split("Requested ")[1].split(",")[0]
+                    return f"Error: Document too large. Exceeded token limit (requested {requested} tokens). Please try a shorter document or ask a more specific question."
+                except:
+                    return "Error: Document too large. Exceeded token limit. Please try a shorter document or ask a more specific question."
+            else:
+                return "Error: Document too large. Exceeded token limit. Please try a shorter document."
+        else:
+            # Other errors
+            return f"Error: {str(e)}"
 
 def main():  
     st.title('Askora') 

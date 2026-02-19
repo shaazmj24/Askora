@@ -4,7 +4,7 @@ from io import BytesIO
 from docx import Document 
 import numpy as np
 from langchain_community.document_loaders import WebBaseLoader
-from PyPDF2 import PdfReader
+import pdfplumber 
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS 
@@ -36,15 +36,19 @@ def process_input(input_type, input_data):
             main = soup.find("main") or soup.find("article") or soup.find("body")
             all_text += main.get_text(separator="\n") if main else soup.get_text(separator="\n")
         documents = all_text 
-    elif input_type == "PDF":
-        if input_data is None: 
-            raise ValueError("No PDF uploaded")  
-        pdf_bytes = input_data.getvalue()  
-        pdf_reader = PdfReader(BytesIO(pdf_bytes))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        documents = text 
+    elif input_type == "PDF":  
+        if input_data is None:  
+            raise ValueError("No PDF uploaded")   
+        pdf_bytes = input_data.getvalue() 
+        text = "" 
+        with pdfplumber.open(BytesIO(pdf_bytes)) as pdf: 
+            for page in pdf.pages: 
+                page_text = page.extract_text() 
+                if page_text: 
+                    text += page_text + "\n" 
+            if not text.strip():   
+                raise ValueError("Error: Could not extract text from PDF. File may be image-based or corrupted.") 
+        documents = text
     elif input_type == "Text":
         if isinstance(input_data, str):
             documents = input_data  # Input is already a text string
@@ -61,7 +65,8 @@ def process_input(input_type, input_data):
         raise ValueError("Unsupported input type")
 
     text_splitter = CharacterTextSplitter(chunk_size=1500, chunk_overlap=500)
-    texts = text_splitter.split_text(documents) 
+    texts = text_splitter.split_text(documents)  
+    
     print("="*50)  
     print(f"TOTAL CHUNKS: {len(texts)}")  
     print("="*50)  
@@ -107,7 +112,7 @@ def answer_question(vectorstore, query):
         result = chain.invoke({"input": query})
         return result["answer"]
     except Exception as e:
-        # Check if it's a token limit error
+        # Check if its a token limit error
         if "rate_limit_exceeded" in str(e) or "Request too large" in str(e):
             # Extract token numbers if possible
             error_msg = str(e)

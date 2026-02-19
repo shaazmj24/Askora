@@ -10,5 +10,6 @@ sentence-transformers
 faiss-cpu==1.7.4 
 numpy<2.0
 beautifulsoup4
+pdfplumber 
 
 
